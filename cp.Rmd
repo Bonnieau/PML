@@ -1,0 +1,94 @@
+## Course Project for Practical Machine Learning
+
+### Introduction
+
+#### Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Data Processing
+
+#### Download data file and load data into R 
+
+```{r}
+if (!file.exists("c:/coursera/DS_PML/pml-training.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+        destfile = "c:/coursera/DS_PML/pml-training.csv")
+}
+if (!file.exists("c:/coursera/DS_PML/pml-testing.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+        destfile = "c:/coursera/DS_PML/pml-testing.csv")
+}
+
+trainraw <- read.table("c:/coursera/DS_PML/pml-training.csv", sep = ",", header=T, stringsAsFactors=F)
+testraw<- read.table("c:/coursera/DS_PML/pml-testing.csv", sep = ",", header=T, stringsAsFactors=F)
+
+```
+#### Inspect and tidy up data sets 
+##### By compare the the whole dataset and complete cases.There are many NA values in the data.  
+```{r}
+dim(trainraw)
+sum(complete.cases(trainraw))
+```
+##### First, we seperate the classe column from other indepent variables
+```{r}
+target<-trainraw[,which(names(trainraw) %in% c("classe"))]
+indepent<-trainraw[,-which(names(trainraw) %in% c("classe"))]
+```
+##### Clean up the indepent variable, remove the NA and character column from indepent data set
+```{r}
+indepent<-indepent[,colSums(is.na(indepent))==0]
+charset<-sapply(names(indepent),function(x) inherits(indepent[,x],c("character")))
+indepent<-indepent[,-which(names(indepent) %in% names(which(charset==TRUE)))]
+```
+##### According to data source http://groupware.les.inf.puc-rio.br/har, remove irrelevant columns
+```{r}
+indepent<-indepent[5:56]
+```
+##### Combine target data with indepent data set to get the final trainset
+```{r}
+trainset<-cbind(indepent,target)
+```
+##### Get the same columns from raw testset and tidy up the test set
+```{r}
+testset<-testraw[,which(names(testraw) %in% names(trainset))]
+```
+
+### Build the predictive model
+##### Load library
+```{r}
+library(caret)
+library(randomForest)
+```
+##### partition the training data for cross-validation
+```{r}
+intrain<-createDataPartition(trainset$target,p=0.7,list=FALSE)
+training<-trainset[intrain,]
+testing<-trainset[-intrain,]
+```
+##### Build the model with Random Forest method
+```{r}
+set.seed(3638)
+model<-train(target~.,data=training,method="rf",trControl=trainControl(method="cv",number=4))
+```
+### Out of sample error estimation with cross validation
+##### Validate the predicted results with cofusionMatrix function
+```{r}
+predval <- predict(model, newdata=testing)
+confu<-confusionMatrix(testing$target,predval)
+confu
+```
+
+```{r}
+accu<-confu$overall["Accuracy"]
+err<-1-accu
+```
+##### The model accuracy is `r format(accu,scientific=F)`
+##### The out of sample error is `r format(err,scientific=F)`
+
+### Predict the results
+##### Use the built model to predict the result for testset
+```{r}
+result<-predict(model,newdata=testset)
+result
+```
+
+
